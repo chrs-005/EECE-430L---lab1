@@ -31,3 +31,29 @@ def add_transaction():
 
     return jsonify({"message": "Transaction added"}), 201
 
+@app.route("/exchangeRate", methods=["GET"])
+def get_exchange_rate():
+    tu_to_l = Transaction.query.filter_by(usd_to_lbp=True).all()
+    tl_to_u = Transaction.query.filter_by(usd_to_lbp=False).all()
+
+    if len(tu_to_l) > 0:
+        total_lbp = sum(t.lbp_amount for t in tu_to_l)
+        total_usd = sum(t.usd_amount for t in tu_to_l)
+        avg_usd_to_lbp = total_lbp / total_usd
+    else:
+        avg_usd_to_lbp = None
+
+    if len(tl_to_u) > 0:
+        total_usd = sum(t.usd_amount for t in tl_to_u)
+        total_lbp = sum(t.lbp_amount for t in tl_to_u)
+        avg_lbp_to_usd = total_usd / total_lbp
+    else:
+        avg_lbp_to_usd = None
+
+    return jsonify({
+           "usd_to_lbp": avg_usd_to_lbp,
+            "lbp_to_usd": avg_lbp_to_usd
+    })
+
+
+
