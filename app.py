@@ -17,9 +17,6 @@ class Transaction(db.Model):
     usd_to_lbp = db.Column(db.Boolean, nullable=False)
 
 
-@app.route("/hello", methods=["GET"])
-def hello_world():
-    return "Hello World!"
 
 @app.route("/transaction", methods=["POST"])
 def add_transaction():
