@@ -1,22 +1,25 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-import os
 from dotenv import load_dotenv
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+import os
+
+app = Flask(__name__)
+limiter = Limiter(app, key_func=get_remote_address)
 
 load_dotenv()
 
-app = Flask(__name__)
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+SECRET_KEY = os.getenv("SECRET_KEY")
 
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
-    f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
-)
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+app.config["SECRET_KEY"] = SECRET_KEY
+app.config["SQLALCHEMY_DATABASE_URI"] = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@localhost:3306/exchange"
 
 db = SQLAlchemy(app)
-
-
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -27,17 +30,32 @@ class Transaction(db.Model):
 
 
 @app.route("/transaction", methods=["POST"])
+@limiter.limit("10 per minute")
 def add_transaction():
+    usd_amount = float(request.json.get("usd_amount"))
+    lbp_amount = float(request.json.get("lbp_amount"))
+    usd_to_lbp = request.json.get("usd_to_lbp")
+
+    if usd_amount <= 0:
+        return jsonify({"error": "Invalid usd_amount"}), 400
+
+    if  lbp_amount <= 0:
+        return jsonify({"error": "Invalid lbp_amount"}), 400
+
+    if type(usd_to_lbp) is not bool:
+        return jsonify({"error": "Invalid usd_to_lbp"}), 400
+
     transaction = Transaction(
-        usd_amount=request.json["usd_amount"],
-        lbp_amount=request.json["lbp_amount"],
-        usd_to_lbp=request.json["usd_to_lbp"]
+        usd_amount=usd_amount,
+        lbp_amount=lbp_amount,
+        usd_to_lbp=usd_to_lbp
     )
 
     db.session.add(transaction)
     db.session.commit()
 
     return jsonify({"message": "Transaction added"}), 201
+
 
 @app.route("/exchangeRate", methods=["GET"])
 def get_exchange_rate():
@@ -59,9 +77,12 @@ def get_exchange_rate():
         avg_lbp_to_usd = None
 
     return jsonify({
-           "usd_to_lbp": avg_usd_to_lbp,
-            "lbp_to_usd": avg_lbp_to_usd
+        "usd_to_lbp_rate": avg_usd_to_lbp,
+        "lbp_to_usd_rate": avg_lbp_to_usd
     })
 
+
+if __name__ == "__main__":
+    app.run(debug=False)
 
 
